@@ -4,9 +4,9 @@ defmodule Day4 do
 
     [firstline | boardLines] = String.split(fileContents, "\n\n", trim: true)
     order = String.split(firstline, ",") |> Enum.map(fn x -> String.to_integer(x) end)
-    boards_tuple = {nil, 0, Enum.map(boardLines, fn x -> create_board(x) end)}
+    boards_tuple = {nil, 0, Enum.map(boardLines, fn x -> {create_board(x), nil} end)}
 
-    {winner, just_called, _} = Enum.reduce_while(order, boards_tuple, fn turn, {_, _, b} ->
+    {{winner, _}, just_called, _} = Enum.reduce_while(order, boards_tuple, fn turn, {_, _, b} ->
       new_boards = update_boards(b, turn)
       {winning_board, winner_exists?} = is_any_board_winning?(new_boards)
       if (not winner_exists?) do
@@ -29,7 +29,29 @@ defmodule Day4 do
 
   def part2(filePath) do
     {:ok, fileContents} = File.read(filePath)
-    String.split(fileContents, "\n", trim: true)
+
+    [firstline | boardLines] = String.split(fileContents, "\n\n", trim: true)
+    order = String.split(firstline, ",") |> Enum.map(fn x -> String.to_integer(x) end)
+    boards_tuple = {nil, 0, Enum.map(boardLines, fn x -> {create_board(x), nil} end)}
+
+    {{winner, _}, just_called, _} = Enum.reduce_while(order, boards_tuple, fn turn, {_, _, b} ->
+      new_boards = update_boards(b, turn)
+      if (not are_all_boards_winning?(new_boards)) do
+        {:cont, {nil, turn, new_boards}}
+      else
+        winning_board = Enum.find(new_boards, fn {_, winning_turn} -> winning_turn == turn end)
+        {:halt, {winning_board, turn, new_boards}}
+      end
+    end)
+    score = count_marked(winner)
+
+    IO.puts("Winning board: ")
+    print_board(winner)
+
+    IO.puts("The number that was just called: " <> Integer.to_string(just_called))
+    IO.puts("Board score: " <> Integer.to_string(score))
+
+    score * just_called
   end
 
   # takes a 5 line printed board from the input
@@ -54,7 +76,10 @@ defmodule Day4 do
   end
 
   def update_boards(boards, to_mark) do
-    Enum.map(boards, fn board -> update_board(board, to_mark) end)
+    Enum.map(boards, fn {board, winning_turn} ->
+      updated_board = update_board(board, to_mark)
+      {updated_board, if ((winning_turn == nil) and is_board_winning?(updated_board)) do to_mark else winning_turn end}
+    end)
   end
 
   def update_board(board, to_mark) do
@@ -62,7 +87,11 @@ defmodule Day4 do
   end
 
   def is_any_board_winning?(boards) do
-    {Enum.find(boards, fn board -> is_board_winning?(board) end), Enum.any?(boards, fn board -> is_board_winning?(board) end)}
+    {Enum.find(boards, fn {board, _} -> is_board_winning?(board) end), Enum.any?(boards, fn {board, _} -> is_board_winning?(board) end)}
+  end
+
+  def are_all_boards_winning?(boards) do
+    Enum.count(boards) == Enum.count(boards, fn {_, turn} -> turn != nil end)
   end
 
   def is_board_winning?(board) do
